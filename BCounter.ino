@@ -77,6 +77,7 @@ void ssd1306_cmd(unsigned char cmd) {
 }
 
 void displayOff() {
+    digitalWrite(I2C_VCC, LOW);
     ssd1306_cmd(0xAE);
     ssd1306_cmd(0x00);
 }

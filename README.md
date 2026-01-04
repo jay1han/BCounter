@@ -108,4 +108,4 @@ the boost converter and a LR44 button battery. The FreeCAD file is provided.
 The two buttons end up deeply buried between the two modules,
 so long columns help push them with a fingertip from outside the box.
 
-The box must be put together using 5x M3x6 screws.
+The box must be put together using 4x M3x8 screws.
