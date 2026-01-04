@@ -5,21 +5,50 @@
 // ----------------------------
 // I2C for OLED display SSD1306
 
-#include "fontdata.h"
-
 #define I2C_ADDR     0x3C
-#define I2C_SCL      21
-#define I2C_SDA      20
-#define PIN_BUTTON   9
+#define I2C_GND      3
+#define I2C_VCC      2
+#define I2C_SCL      1
+#define I2C_SDA      0
 
-#define FONT_WIDTH    FONT_WIDTH_16
-#define FONT_PITCH    (FONT_WIDTH + 1)
+// Font: only digits
+
+#define FONT_WIDTH 8
+#define FONT_PITCH    (FONT_WIDTH + 2)
+
+const unsigned char fontdata_top[][8] = {
+    {0xFC,0xFE,0x87,0xC3,0xE3,0x77,0xFE,0xFC,},
+    {0x00,0x0C,0x0E,0xFF,0xFF,0x00,0x00,0x00,},
+    {0x0C,0x0E,0x07,0x83,0xC3,0xE7,0x7E,0x3C,},
+    {0x06,0x07,0x03,0xC3,0xC3,0xE7,0xFE,0x3C,},
+    {0xE0,0xF0,0xB8,0x9C,0x8E,0xFF,0xFF,0x80,},
+    {0x3F,0x3F,0x33,0x33,0x33,0x73,0xE3,0xC3,},
+    {0xF0,0xF8,0xDC,0xCE,0xC7,0xC3,0x83,0x00,},
+    {0x03,0x03,0xC3,0xE3,0x73,0x3B,0x1F,0x0F,},
+    {0x3C,0x3E,0xE7,0xC3,0xC3,0xE7,0x3E,0x3C,},
+    {0x3C,0x7E,0xE7,0xC3,0xC3,0xE7,0xFE,0xFC,},
+};
+
+const uint8_t fontdata_bot[][8] = {
+    {0x0F,0x1F,0x3B,0x31,0x30,0x38,0x1F,0x0F,},
+    {0x00,0x30,0x30,0x3F,0x3F,0x30,0x30,0x00,},
+    {0x3C,0x3E,0x37,0x33,0x31,0x30,0x30,0x30,},
+    {0x18,0x38,0x30,0x30,0x30,0x39,0x1F,0x0F,},
+    {0x01,0x01,0x01,0x01,0x01,0x3F,0x3F,0x01,},
+    {0x0C,0x1C,0x38,0x30,0x30,0x38,0x1F,0x0F,},
+    {0x0F,0x1F,0x39,0x30,0x30,0x39,0x1F,0x0F,},
+    {0x00,0x00,0x3F,0x3F,0x00,0x00,0x00,0x00,},
+    {0x0F,0x1F,0x39,0x30,0x30,0x39,0x1F,0x0F,},
+    {0x00,0x30,0x30,0x38,0x1C,0x0E,0x07,0x03,},
+};
+
 #define LCD_H_RES     72
 #define LCD_V_RES     40
 #define LCD_PAGES     (LCD_V_RES / 8)
 #define LINE_WIDTH    (LCD_H_RES / FONT_PITCH / 2)
 
 // https://www.icbanq.com/icdownload/data/ICBShop/Board/ZJY001_0.42_16P%20OLED.pdf?srsltid=AfmBOoqmlH9ZyInqXiyzBa5Ofm6whEkgQ9E289g3ANLAxYkE7rXdTKrI
+
 const unsigned char ssd1306_init[] = {
     0xAE | 0x00,          // SET_DISP            off
     0xD5, 0xF0,           // SET OSC DIV
@@ -66,25 +95,32 @@ void sendPage(int page, unsigned char *buffer, int length) {
 unsigned char lines[4][LCD_H_RES];
 unsigned char bar[LCD_H_RES];
 
-void clearDisplay() {
-    memset(bar, 0, sizeof(bar));
-    for (int page = 0; page < LCD_PAGES; page ++) {
-        sendPage(page, bar, sizeof(bar));
-    }
-}
-
 void initDisplay() {
+    pinMode(I2C_GND, OUTPUT);
+    digitalWrite(I2C_GND, LOW);
+    pinMode(I2C_VCC, OUTPUT);
+    digitalWrite(I2C_VCC, LOW);
+    delay(100);
+    digitalWrite(I2C_VCC, HIGH);
+    delay(100);
+    
+    memset(bar, 0, sizeof(bar));
+    
     Wire.begin(I2C_SDA, I2C_SCL, 400000);
     Wire.beginTransmission(I2C_ADDR);
     if (Wire.endTransmission() == 0) {
         for (int i = 0; i < sizeof(ssd1306_init); i++) {
             ssd1306_cmd(ssd1306_init[i]);
         }
+        delay(100);
 
-        clearDisplay();
+        for (int page = 0; page < LCD_PAGES; page ++) {
+            sendPage(page, bar, sizeof(bar));
+        }
         Serial.println("I2C OLED initialized");
     } else {
         Serial.println("I2C OLED failed");
+        esp_deep_sleep_start();
     }
 }
 
@@ -111,7 +147,7 @@ void displayNum(char *text) {
         int index = text[i];
         if (index >= '0' && index <= '9') {
             index -= '0';
-            for (int col = 0; col < FONT_WIDTH_16; col++) {
+            for (int col = 0; col < FONT_WIDTH; col++) {
                 lines[0][target] = nybble_low(fontdata_top[index][col]);
                 lines[1][target] = nybble_hi(fontdata_top[index][col]);
                 lines[2][target] = nybble_low(fontdata_bot[index][col]);
@@ -124,16 +160,13 @@ void displayNum(char *text) {
                 target++;
             }
         } else {
-            for (int col = 0; col < FONT_WIDTH_16 * 2; col++) {
-                lines[0][target] = 0;
-                lines[1][target] = 0;
-                lines[2][target] = 0;
-                lines[3][target] = 0;
+            for (int col2 = 0; col2 < FONT_WIDTH * 2; col2++) {
+                lines[0][target] = lines[1][target] = lines[2][target] = lines[3][target] = 0x00;
                 target++;
             }
         }
         
-        for (int col = 0; col < 4; col++) {
+        for (int space = 0; space < 4; space++) {
             lines[0][target] = lines[1][target] = lines[2][target] = lines[3][target] = 0x00;
             target++;
         }
@@ -180,7 +213,7 @@ void initFs() {
     if (err != ESP_OK) {
         Serial.printf("SPIFFS register => %d\n", err);
         esp_spiffs_format(NULL);
-        ESP.restart();
+        esp_deep_sleep_start();
     }
 }
 
@@ -208,6 +241,8 @@ void setCount(int count) {
 
 // Button
 
+#define PIN_BUTTON   9
+
 bool buttonDown() {
     return digitalRead(PIN_BUTTON) == LOW;
 }
@@ -234,11 +269,10 @@ void loop() {
     static int lastUpdate = 0;
     int seconds = millis() / 1000;
     if (seconds > 30) {
-        if (digitalRead(PIN_BUTTON) == LOW) {
+        if (buttonDown()) {
             setCount(0);
             ESP.restart();
         }
-        clearDisplay();
         displayOff();
         esp_deep_sleep_start();
         return;
@@ -248,7 +282,7 @@ void loop() {
     static bool button = false;
     static int pressed = 0;
     
-    if (digitalRead(PIN_BUTTON) == LOW) {
+    if (buttonDown()) {
         if (!button) {
             Serial.printf("Button down at %ds\n", seconds);
             button = true;
