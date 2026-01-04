@@ -1,6 +1,6 @@
 # BCounter
 
-Simple counter with SSD1306 display
+Simple counter with SSD1306 display.
 
 ## Usage
 
@@ -13,6 +13,11 @@ Simple counter with SSD1306 display
 ### Screen
 
 Displays the count on 3 digits and a countdown bar to show remaining time until power off (30 seconds).
+
+### Battery life
+
+A LR44 1.5V battery should last several months and hundreds of button presses.
+Test ongoing...
 
 ## Circuit
 
